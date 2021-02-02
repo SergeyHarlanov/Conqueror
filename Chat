@@ -1,0 +1,301 @@
+using Firebase.Database;
+using Photon.Pun;
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class createguild : MonoBehaviour
+{
+    
+    public InputField namesend;//какое сообщение
+    public GameObject prefabcellforchat;//префаб ячейки для чата
+    public Transform content;//префаб ячейки для чата
+    //для гильдейского
+    public List<string> nameallmessage;//названия всех сообщения что бы не спавнить одно тысячу раз
+    public List<string> nameallmessagethirid;//идентификаторы наших сообщений
+    //для общего массивы    
+    public InputField namesendаforgen;//какое сообщение
+    public Transform contentforgen;//
+
+    public Transform contentforguild;// для гильдии куда будет чилдовать
+    public List<string> nameallmessageg;//названия всех сообщения что бы не спавнить одно тысячу раз
+    public List<string> nameallmessagethiridg;//идентификаторы наших сообщений
+
+    public List<string> nameforcellguildbelogn;//названия всех участников ги
+    public List<string> nameforcellguildbelognident;//идентификаторы всех челов ги
+
+    public TextMeshProUGUI nameguild;
+
+    public bool activeGuildchat;//проверяем какой чат будет активен
+
+ //   public createguild cr;
+
+    public static createguild instiate;//экзамепляр класса
+    public GameObject bannerforyhoudontbelong;//баннеры ты не в сети
+
+    public GameObject prefabforcellguildbelong;
+
+    public string muguild;//моя гильдия
+
+    public GameObject[] guild;//объекты для ги
+    public GameObject[] gener;//объекты для б
+    //для общего
+    // Start is called before the first frame update
+    void Start()
+    {
+        sendmessage();//для гильд
+        sendmessageg();//для общего
+        findguild();//ищем свою ги
+        Findcelllforguildbelogn();//находим активных челов в нашей ги
+    
+    }
+    public  void selectmoduleforchat(bool select)//выбираем какой чат будет активен 
+    {
+       activeGuildchat = select;
+    }
+    //----------------для поиска членов в ги
+    public void Findcelllforguildbelogn()//находим челов нашей ги
+    {
+        var references = FirebaseDatabase.DefaultInstance.GetReference("Guild");
+        references.Child(muguild.Trim('"')).ValueChanged += (sendere, e) =>
+        {
+            foreach (var item in e.Snapshot.Child("member").Children)
+            {
+                if (!nameforcellguildbelogn.Contains(item.Key))//проверяем записали ли мы уже сообщение
+                {
+                    nameforcellguildbelogn.Add(item.Key);
+                }
+            }
+        };
+
+        Invoke("Findcelllforguildbelogn", 1f);
+
+    }
+    public void Findguild()//указываем всё о своей ги сколько человек и тд
+    {
+        try
+        {
+            nameguild.text = muguild.Trim('"');//указываем нашу ги
+        }
+        catch
+        {
+
+        }
+        //создаем ячейки для игроков
+        try
+        {
+            for (int i = 0; i <= nameforcellguildbelogn.Count - 1; i++)//записываем полученные ячейки сообщения в чат что бы мы и другие челы видели это
+            {
+                Debug.Log("1");
+                if (!GameObject.Find(nameforcellguildbelogn[i])&&!contentforguild.FindChild(nameforcellguildbelogn[i]))//проверка на то что бы не спавнить много раз одно и тоже
+                {
+                    Debug.Log("2");
+                    Transform qw = Instantiate(prefabforcellguildbelong, new Vector3(0, 0, 0), Quaternion.identity).transform;
+                    qw.SetParent(contentforguild);
+                    qw.transform.localScale = new Vector3(1f, 1f, 1f);
+                    qw.name = nameforcellguildbelogn[i];
+                    qw.GetChild(0).GetComponent<Text>().text = nameforcellguildbelogn[i];
+                }
+            }
+        }
+        catch
+        {
+
+        }
+
+    }
+    //----------------------------
+    public void findguild()//ищем свою гильдию
+    {
+        var references = FirebaseDatabase.DefaultInstance.GetReference(PhotonNetwork.NickName);
+        references.Child("myguild").ValueChanged += (sendere, e) =>//добавляем значение таймера который должен будет истечь
+        {
+            if(e.Snapshot.GetRawJsonValue()!=0.ToString())
+            {
+                muguild = e.Snapshot.GetRawJsonValue();
+            }
+        };
+    }
+    //для гильдейского чата-------------------------------------------------------------------------------------------------
+    public void sendmessagewhich()//отправляем сообщение какое для гильдии чата
+    {
+        var references = FirebaseDatabase.DefaultInstance.GetReference("Guild");
+        references.Child(muguild.Trim('"')).Child("chat").Child(Random.Range(0, 10000).ToString() + "message").Child(PhotonNetwork.NickName).Reference.SetValueAsync(namesend.text.ToString());
+        namesend.text = "";
+        screeninchatlong.inlastscroll();
+    }
+
+    public void sendmessage()//отправляем сообщение
+    {
+        var references = FirebaseDatabase.DefaultInstance.GetReference("Guild");
+        references.Child(muguild.Trim('"')).Child("chat").ValueChanged += (sendere, e) =>//добавляем значение таймера который должен будет истечь
+        {
+            foreach (var item in e.Snapshot.Children)
+            {
+                foreach (var items in item.Children)
+                {
+                    if(!nameallmessagethirid.Contains(item.Key))//проверяем записали ли мы уже сообщение
+                    {
+                        nameallmessagethirid.Add(item.Key);
+                        nameallmessage.Add(items.Key + ":" + items.Value.ToString());
+                    }
+                }
+         
+            }
+
+        };
+ 
+       Invoke("sendmessage", 1f);
+
+    }
+    public void writeinchatmessage()//записываем сообщение в чат
+    {
+        for (int i = 0; i <= nameallmessage.Count - 1; i++)//записываем полученные ячейки сообщения в чат что бы мы и другие челы видели это
+        {
+            if (!GameObject.Find(nameallmessagethirid[i])&&content.childCount<= nameallmessagethirid.Count)//проверка на то что бы не спавнить много раз одно и тоже
+            {
+                Transform qw = Instantiate(prefabcellforchat, new Vector3(0, 0, 0), Quaternion.identity).transform;
+                qw.SetParent(content);
+                qw.transform.localScale = new Vector3(1f, 1f, 1f);
+                qw.name = nameallmessagethirid[i];
+                qw.GetComponent<Text>().text = nameallmessage[i];
+            }
+        }
+    }
+    //для общего чата-------------------------------------------------------------------------------------------------
+    public void sendmessagewhichgeneral()//отправляем сообщение какое для общего чата
+    {
+
+        var references = FirebaseDatabase.DefaultInstance.GetReference("Generalchat");
+        references.Child(Random.Range(0, 10000).ToString() + "message").Child(PhotonNetwork.NickName).Reference.SetValueAsync(namesendаforgen.text.ToString());
+        namesendаforgen.text = "";
+        screeninchatlong.inlastscroll();
+    }
+    public void chekengWordinchatingame()//изменяем сообщение например если гильдлии у  игрока в сообщении не успели загрузиться
+    {
+        if(!activeGuildchat)
+        {
+            for (int i = 0; i <= nameallmessagethiridg.Count - 1; i++)
+            {
+                if (GameObject.Find(nameallmessagethiridg[i]).GetComponent<Text>().text != nameallmessageg[i])
+                {
+                    GameObject.Find(nameallmessagethiridg[i]).GetComponent<Text>().text = nameallmessageg[i];
+                }
+            }
+        }
+   
+    }
+    public void sendmessageg()//Записывае сообщение в массив 
+    {
+            var references = FirebaseDatabase.DefaultInstance.GetReference("Generalchat");
+
+            references.ValueChanged += (sendere, e) =>//записываем сообщение с сервера в массив
+            {
+                foreach (var item in e.Snapshot.Children)
+                {
+                  
+                    foreach (var items in item.Children)
+                    {
+                        if (!nameallmessagethiridg.Contains(item.Key)&&items.Exists&& item.Exists)//проверяем записали ли мы уже сообщение
+                        {
+                            nameallmessagethiridg.Add(item.Key);//записываем ключь что бы снова не спанвить одно и то же -)
+                            nameallmessageg.Add(items.Key + ":" + items.Value.ToString());
+                        }
+                    }
+                }
+
+            };
+        for(int i=0;i<= nameallmessageg.Count-1;i++)// а вот здесь уже добавляем его гильду
+        {
+            string wtf = "";
+            foreach(char item in nameallmessageg[i])
+            {
+                if (item == ':')
+                    break;
+                else wtf += item;
+            }
+            var lider = FirebaseDatabase.DefaultInstance.GetReference(wtf);
+            lider.Child("myguild").ValueChanged += (eq, q) =>
+            {
+
+                if (q.Snapshot.GetRawJsonValue() != 0.ToString())
+                {
+                    for (int ii = 0; ii <= nameallmessageg.Count - 1; ii++)
+                    {
+                        string wtfq = "";
+                        foreach (char items in nameallmessageg[ii])
+                        {
+                            if (items == ':')
+                                break;
+                            else wtfq += items;
+                        }
+                        if (wtf == wtfq&&!nameallmessageg[ii].Contains("Guild"))
+                        {
+                            nameallmessageg[ii] += " | Guild | " + q.Snapshot.GetValue(true);
+                        }
+                    }
+                }
+            };
+        }
+   
+        
+
+        Invoke("sendmessageg", 1f);
+    }
+    public void writeinchatmessageg()//записываем сообщение в чат
+    {
+        for (int i = 0; i <= nameallmessageg.Count - 1; i++)//записываем полученные ячейки сообщения в чат что бы мы и другие челы видели это
+        {
+            if (!GameObject.Find(nameallmessagethiridg[i]) && contentforgen.childCount <= nameallmessagethiridg.Count)//проверка на то что бы не спавнить одно и тоже много раз
+            {
+                Transform qw = Instantiate(prefabcellforchat, new Vector3(0, 0, 0), Quaternion.identity).transform;
+                qw.SetParent(contentforgen);
+                qw.transform.localScale = new Vector3(1f, 1f, 1f);
+                qw.name = nameallmessagethiridg[i];
+                qw.GetComponent<Text>().text = nameallmessageg[i];
+            }
+        }
+    }
+    // Update is called once per frame
+    void Update()
+    {
+        if (!activeGuildchat)
+        {
+            foreach (GameObject item in guild)
+            {
+                item.SetActive(false);
+            }
+            foreach (GameObject item in gener)
+            {
+                item.SetActive(true);
+            }
+            bannerforyhoudontbelong.SetActive(false);
+        }
+        else
+        {
+            if(muguild.Trim()=="")//проверяем есть лиу  нас гильдия
+            {
+                bannerforyhoudontbelong.SetActive(true);//активируем баннер у тебя нет ги
+            }
+            else
+            {
+                foreach (GameObject item in guild)
+                {
+                    item.SetActive(true);
+                }
+                bannerforyhoudontbelong.SetActive(false);
+            }
+          
+            foreach (GameObject item in gener)
+            {
+                item.SetActive(false);
+            }
+        }
+        writeinchatmessage();
+        writeinchatmessageg();
+        chekengWordinchatingame();
+        Findguild();//указываем своих участнников ги итд
+    }
+}
