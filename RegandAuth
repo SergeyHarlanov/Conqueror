@@ -1,0 +1,243 @@
+using Firebase;
+using Firebase.Auth;
+using Firebase.Database;
+using Photon.Pun;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using static Photon.Pun.UtilityScripts.TabViewManager;
+
+public class AuthManager : MonoBehaviour
+{
+    [Header("Firebase")]
+    public DependencyStatus dependencyStatus;
+  static  public FirebaseAuth auth;
+    public FirebaseUser User;
+
+    //Login variables
+    [Header("Login")]
+    //для регистрации
+    public TMP_InputField emailLoginField;
+    public TMP_InputField passwordLoginField;
+    //для авторизации
+    public TMP_InputField emailLoginFieldforauth;
+    public TMP_InputField passwordLoginFieldforauth;
+
+    public TMP_InputField Name;
+    public Text warningLoginText;
+
+    public TextMeshProUGUI logtext;
+
+    public ParticleSystem fire;//отключаем огонь у черепа
+    private void Awake()
+    {
+        FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task =>
+        {
+            dependencyStatus = task.Result;
+            if (dependencyStatus == DependencyStatus.Available)
+            {
+                //If they are avalible Initialize Firebase
+                InitializeFirebase();
+                
+            }
+        });
+        PhotonNetwork.AutomaticallySyncScene = true;
+        PhotonNetwork.GameVersion = "1";
+        PhotonNetwork.ConnectUsingSettings();
+    }
+   
+    private void InitializeFirebase()
+    {
+        auth = FirebaseAuth.DefaultInstance;
+    }
+    public void createmodulefornewuser()//создание первого режима для нового пользователя
+    {
+
+        var myguild = FirebaseDatabase.DefaultInstance.GetReference(PhotonNetwork.NickName);
+
+        myguild.Child("Email").SetValueAsync(emailLoginField.text);//для записываем свою почту
+
+        myguild.Child("tropies").Child("РУБЛЬ").SetValueAsync(700);//для теста
+
+        myguild.Child("myguild").SetRawJsonValueAsync(0.ToString());
+
+        myguild.Child("invite").SetRawJsonValueAsync(0.ToString());
+        var references = FirebaseDatabase.DefaultInstance.GetReference(PhotonNetwork.NickName);
+        for (int i = 1; i <= 9; i++)//записываем у всех значение ноль иначе без этого он просто не ивлит ссылку
+        {
+            references.Child("Conquest").Child("Circle" + i).Child("module").Reference.SetValueAsync(0);
+        }
+
+     
+  ;
+            references.Child("Arena").ValueChanged += (q, e) =>
+            {
+                if (!e.Snapshot.Exists)
+                {
+                    e.Snapshot.Child("Timeneed").Reference.SetValueAsync(7);
+                    e.Snapshot.Child("purchased").Reference.SetValueAsync(0);
+                }
+            };
+            references.Child("Serenity 1").ValueChanged += (q, e) =>
+            {
+                if (!e.Snapshot.Exists)
+                {
+                    e.Snapshot.Child("Timeneed").Reference.SetValueAsync(14);
+                    e.Snapshot.Child("purchased").Reference.SetValueAsync(0);
+                }
+            };
+            references.Child("Serenity 2").ValueChanged += (q, e) =>
+            {
+                if (!e.Snapshot.Exists)
+                {
+                    e.Snapshot.Child("Timeneed").Reference.SetValueAsync(21);
+                    e.Snapshot.Child("purchased").Reference.SetValueAsync(0);
+                }
+            };
+            references.Child("Serenity 3").ValueChanged += (q, e) =>
+            {
+                if (!e.Snapshot.Exists)
+                {
+                    // e.Snapshot.Child("Timenow").Reference.SetValueAsync(DateTime.Now.Day);
+                    e.Snapshot.Child("Timeneed").Reference.SetValueAsync(28);
+                    e.Snapshot.Child("purchased").Reference.SetValueAsync(0);
+                }
+            };
+        
+    
+
+    }
+  public void joinauth()//авторизация аккаунта
+    {
+        StartCoroutine(authentification(emailLoginFieldforauth.text, passwordLoginFieldforauth.text));
+    }
+    public void loginbutton()
+    {
+        var refen = FirebaseDatabase.DefaultInstance.RootReference;
+        refen.ValueChanged+=(q,e) =>//проверяем занят ли никнейм
+        {
+            bool existname = false;
+
+            foreach (var email in e.Snapshot.Children)
+            {
+                if (email.Key == Name.text)
+                {
+                    existname = true;
+                    break;
+                }
+            }
+            if (existname)//проверяем сущ. ли имя
+            {
+              warningLoginText.text = "name is exist".ToString();
+              warningLoginText.color = Color.red;
+            }
+            else
+            {
+                foreach (char item in Name.text)//проверяем встретились ли нам русские буквы
+                {
+                    if (item <= 'я' && item >= 'а' || item <= 'Я' && item >= 'А')
+                        return;
+                }
+                PlayerPrefs.SetInt("activeplanet", 0);
+                try
+                {
+                    StartCoroutine(Login(emailLoginField.text, passwordLoginField.text));
+                }
+                catch
+                {
+
+                }
+            }
+        };
+    }
+
+    private void Update()
+    {
+
+    }
+    private IEnumerator Login(string _email, string _password)//регистрация
+    {
+       var LoginTask = auth.CreateUserWithEmailAndPasswordAsync(_email, _password);
+        yield return new WaitUntil(predicate: () => LoginTask.IsCompleted);
+   
+
+        if (LoginTask.Exception != null)
+        {
+            FirebaseException firebaseEx = LoginTask.Exception.GetBaseException() as FirebaseException;
+            AuthError errorCode = (AuthError)firebaseEx.ErrorCode;
+            warningLoginText.text = errorCode.ToString();
+            warningLoginText.color = Color.red;
+        }
+        else
+        {
+            var refq = FirebaseDatabase.DefaultInstance.RootReference;
+
+            refq.GetValueAsync().ContinueWith(y =>//проверяем если у нас вкладка гильдий не существует
+            {
+                if (!y.Result.Child("Guild").Exists)
+                {
+                    y.Result.Child("Guild").Reference.SetValueAsync(0);
+                }
+            });
+            refq.GetValueAsync().ContinueWith(y =>//проверяем если у нас вкладка гильдий не существует
+            {
+                if (!y.Result.Child("Generalchat").Exists)
+                {
+                    y.Result.Child("Generalchat").Reference.SetValueAsync(0);
+                }
+            });
+            //fire.Stop();
+            User = LoginTask.Result;
+            warningLoginText.text = "";
+            warningLoginText.text = "Logged In";
+            warningLoginText.color = Color.green;
+          PhotonNetwork.NickName = Name.text;
+            createmodulefornewuser();
+            loading.loadingread("PlanetScene");
+
+        }
+
+    }
+    private IEnumerator authentification(string _email, string _password)//fdnjhbpfwbz
+    {
+        var LoginTask = auth.SignInWithEmailAndPasswordAsync(_email, _password);
+        yield return new WaitUntil(predicate: () => LoginTask.IsCompleted);
+
+
+        if (LoginTask.Exception != null)
+        {
+            FirebaseException firebaseEx = LoginTask.Exception.GetBaseException() as FirebaseException;
+            AuthError errorCode = (AuthError)firebaseEx.ErrorCode;
+            warningLoginText.text = errorCode.ToString();
+            warningLoginText.color = Color.red;
+        }
+        else
+        {
+            fire.Stop();
+            User = LoginTask.Result;
+            warningLoginText.text = "";
+            warningLoginText.text = "Logged In";
+            warningLoginText.color = Color.green;
+            var refen = FirebaseDatabase.DefaultInstance.RootReference;
+            refen.ValueChanged += (q, e) =>
+              {
+                  foreach (var email in e.Snapshot.Children)
+                  {
+                      if (Convert.ToString(email.Child("Email").GetValue(true))== Convert.ToString(emailLoginFieldforauth.text))//узнаем по email свой ник в бд
+                      {
+                           PhotonNetwork.NickName = Convert.ToString(email.Child("Email").GetValue(true));
+                         loading.loadingread("PlanetScene");
+                      }
+                  }
+
+              };
+           
+      
+       
+        }
+    }
+}
